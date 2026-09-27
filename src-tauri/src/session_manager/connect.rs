@@ -993,6 +993,7 @@ impl SessionManager {
                 match open_result {
                     Ok((agent_sid, resumed)) => {
                         let need_bootstrap = !resumed && journal_has_history;
+                        let acp_align = acp.clone();
                         {
                             let mut guard = self.inner.lock();
                             if let Some(s) = guard.as_mut() {
@@ -1021,6 +1022,22 @@ impl SessionManager {
                             resumed,
                             "connect warm-reuse ok"
                         );
+
+                        if let Err(e) = Self::with_soft_rpc_budget(
+                            acp_align.set_model_for(&agent_sid, &agent_model),
+                        )
+                        .await
+                        {
+                            tracing::warn!("acp set_model after warm reuse soft-fail: {e}");
+                        }
+                        if let Err(e) = Self::with_soft_rpc_budget(
+                            acp_align.set_mode_for(&agent_sid, &prefs.mode),
+                        )
+                        .await
+                        {
+                            tracing::warn!("acp set_mode after warm reuse soft-fail: {e}");
+                        }
+
                         emit_host_exit_heal(&app, &meta.id);
                         // Refresh the prewarm slot with a FRESH process: the
                         // one we just consumed now hosts this session's actor,
